@@ -76,7 +76,7 @@ class BIMMSad2(BIMMS_class):
                 exit()
         elif isinstance(serialnumber, str):
             if serialnumber in cst.BimmsSerialNumbers.values():
-                self.serialnumber
+                self.serialnumber = serialnumber
                 selected = True
             else:
                 print(
