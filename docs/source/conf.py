@@ -29,6 +29,7 @@ exclude_patterns = []
 
 
 html_theme = "furo"
+html_logo = "logo/BIMMS_logo.png"
 html_static_path = ["_static"]
 
 autosummary_generate = True
