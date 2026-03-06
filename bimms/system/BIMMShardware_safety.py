@@ -1,9 +1,18 @@
-"""Hardware routing and STM32 control layer for BIMMS.
+"""
+    Python library to use BIMMS measurement setup
+    Authors: Florian Kolbl / Louis Regnacq
+    (c) ETIS - University Cergy-Pontoise
+        IMS - University of Bordeaux
+        CNRS
 
-This module maps high-level measurement topologies onto BIMMS relay states,
-instrumentation-amplifier gain lines, and STM32 control registers. It provides
-the relay-routing primitives used to configure excitation, sensing, and safety
-paths in the acquisition front-end.
+    Requires:
+        Python 3.6 or higher
+        Analysis_Instrument - class handling Analog Discovery 2 (Digilent)
+
+    Dev notes:
+        - LR: in BIMMS_constants, IO15 change with IO7 because hardware issue.  
+        - LR: TIA relay modified too
+
 """
 from abc import abstractmethod
 import sys
@@ -28,25 +37,8 @@ HardwareVerbose = True
 ## CLASS FOR BIMMS HANDLING ##
 ##############################
 class BIMMShardware(BIMMSad2):
-    """
-    Hardware abstraction layer for BIMMS relay routing and STM32 control.
-
-    This class stores the state of relay-selection flags, instrumentation-amplifier
-    gain lines, status LEDs, and free digital I/O pins. It exposes methods that map
-    measurement topologies onto the underlying analog front-end hardware.
-    """
     @abstractmethod
     def __init__(self, bimms_id=None, serialnumber=None):
-        """
-        Initialize BIMMS hardware state and establish STM32 communication.
-
-        Parameters
-        ----------
-        bimms_id : int, optional
-            Registered BIMMS identifier.
-        serialnumber : str, optional
-            Explicit Analog Discovery 2 serial number.
-        """
         super().__init__(bimms_id=bimms_id, serialnumber=serialnumber)
 
         # Relay states
@@ -100,18 +92,6 @@ class BIMMShardware(BIMMSad2):
 
 
     def __start_STM32_com(self):
-        """
-        Initialize SPI communication with the on-board STM32 controller.
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            Raised when no valid BIMMS board identifier can be read from the STM32.
-        """
         self.SPI_init_STM32()
         self.ID = self.get_board_ID()
         if self.ID == 0 or self.ID > 16:  # only 8 bimms for now
@@ -126,18 +106,12 @@ class BIMMShardware(BIMMSad2):
             print("You are connected to BIMMS " + str(self.ID))
 
     def close(self):
-        """
-        Place the STM32 in the stopped state and close the acquisition backend.
-        """
         self.set_state(cst.STM32_stopped)
         super().close()
     #################################
     ## SPI communitation methods ##
     #################################
     def SPI_init_STM32(self):
-        """
-        Initialize the SPI bus used to communicate with the STM32 controller.
-        """
         self.SPI_init(
             cst.STM32_CLK,
             cst.STM32_CLK_p,
@@ -147,41 +121,12 @@ class BIMMShardware(BIMMSad2):
         )
 
     def tx_2_STM32(self, value):
-        """
-        Transmit a 32-bit command word to the STM32.
-
-        Parameters
-        ----------
-        value : int
-            Encoded command word.
-        """
         self.SPI_write_32(cst.STM32_CS_p, value)
 
     def rx_from_STM32(self):
-        """
-        Receive a 32-bit word from the STM32.
-
-        Returns
-        -------
-        int
-            Data word returned by the microcontroller.
-        """
         return self.SPI_read_32(cst.STM32_CS_p)
 
     def read_STM32_register(self, address):
-        """
-        Read a register from the STM32 register map.
-
-        Parameters
-        ----------
-        address : int
-            Register address.
-
-        Returns
-        -------
-        int
-            Register content.
-        """
         value = cst.cmd_shift * cst.read_register + address
         # print(bin(2**32))
         # print(bin(value))
@@ -193,26 +138,10 @@ class BIMMShardware(BIMMSad2):
     ## low level methods ##
     #######################
     def get_board_ID(self):
-        """
-        Read the BIMMS board identifier from the STM32.
-
-        Returns
-        -------
-        int
-            Board identifier encoded in the firmware register map.
-        """
         ID = self.read_STM32_register(cst.ID_add)
         return ID
     
     def get_config_vector(self):
-        """
-        Assemble the relay-state bit vector corresponding to the current object state.
-
-        Returns
-        -------
-        int
-            Packed relay configuration word.
-        """
         vector = 0
         vector += self.Ch1Coupling * cst.Ch1Coupling_rly
         vector += self.Chan1Scope1 * cst.Chan1Scope1_rly
@@ -241,31 +170,31 @@ class BIMMShardware(BIMMSad2):
 
     def set_relays(self, rvector):
         """
-        Set all relay states in a single transaction.
+        Set all the relays values at once
 
         Parameters
         ----------
         rvector : int
-            Packed relay configuration vector as defined by the project constants.
+            see BIMMS_constant for relays mapping
         """
         value = cst.cmd_shift * cst.set_relay + rvector
         self.tx_2_STM32(value)
 
     def get_relays(self):
         """
-        Read the current relay-state map from the STM32.
+        Get the values of all relays
 
         Returns
         -------
-        int
-            Packed relay configuration vector.
+        values : int
+            see BIMMS_constant for relays mapping
         """
         relays_map = self.read_STM32_register(cst.relays_map_add)
         return relays_map
 
     def send_config(self):
         """
-        Transmit the currently stored relay configuration when it has changed.
+        Send the one stored in the current object to the stm32 to set relay config
         """
 
         rvector = self.get_config_vector()
@@ -281,109 +210,46 @@ class BIMMShardware(BIMMSad2):
     ###########################################
 
     def connect_CH1_to_scope_1(self):
-        """
-        Connect the routing path corresponding to ``CH1 to scope 1``.
-
-        Returns
-        -------
-        None
-        """
         self.Chan1Scope1 = 1
         if (HardwareVerbose):
             print("Hardware Info: CH1 connected to SCOPE1")
 
     def disconnect_CH1_from_scope_1(self):
-        """
-        Disconnect the routing path corresponding to ``CH1 from scope 1``.
-
-        Returns
-        -------
-        None
-        """
         self.Chan1Scope1 = 0
         if (HardwareVerbose):
             print("Hardware Info: CH1 disconnected from SCOPE1")
 
     def connect_CH2_to_scope_2(self):
-        """
-        Connect the routing path corresponding to ``CH2 to scope 2``.
-
-        Returns
-        -------
-        None
-        """
         self.Chan2Scope2 = 1
         if (HardwareVerbose):
             print("Hardware Info: CH2 connected to SCOPE1")
 
     def disconnect_CH2_from_scope_2(self):
-        """
-        Disconnect the routing path corresponding to ``CH2 from scope 2``.
-
-        Returns
-        -------
-        None
-        """
         self.Chan2Scope2 = 0
         if (HardwareVerbose):
             print("Hardware Info: CH2 disconnected from SCOPE1")
 
     def set_CH1_AC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``CH1 AC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.Ch1Coupling = 1
         if (HardwareVerbose):
             print("Hardware Info: CH1 AC Coupled")
 
     def set_CH1_DC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``CH1 DC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.Ch1Coupling = 0
         if (HardwareVerbose):
             print("Hardware Info: CH1 DC Coupled")
 
     def set_CH2_AC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``CH2 AC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.Ch2Coupling = 1
         if (HardwareVerbose):
             print("Hardware Info: CH2 AC Coupled")
 
     def set_CH2_DC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``CH2 DC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.Ch2Coupling = 0
         if (HardwareVerbose):
             print("Hardware Info: CH2 DC Coupled")
 
     def connect_Vpos_to_StimPos(self):
-        """
-        Connect the routing path corresponding to ``Vpos to StimPos``.
-
-        Returns
-        -------
-        None
-        """
         self.VoutPos2StimPos = 1
         self.Ipos2StimPos = 0
         self.Potentiostat2StimPos = 0
@@ -391,13 +257,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: Vpos connected to StimPos")
 
     def connect_Ipos_to_StimPos(self):
-        """
-        Connect the routing path corresponding to ``Ipos to StimPos``.
-
-        Returns
-        -------
-        None
-        """
         self.VoutPos2StimPos = 0
         self.Ipos2StimPos = 1
         self.Potentiostat2StimPos = 0
@@ -405,13 +264,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: Ipos connected to StimPos")
 
     def connect_Potentiostat_to_StimPos(self):
-        """
-        Connect the routing path corresponding to ``Potentiostat to StimPos``.
-
-        Returns
-        -------
-        None
-        """
         self.VoutPos2StimPos = 0
         self.Ipos2StimPos = 0
         self.Potentiostat2StimPos = 1
@@ -419,13 +271,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: Potentiostat connected to StimPos")
 
     def disconnect_StimPos(self):
-        """
-        Disconnect the routing path corresponding to ``StimPos``.
-
-        Returns
-        -------
-        None
-        """
         self.VoutPos2StimPos = 0
         self.Ipos2StimPos = 0
         self.Potentiostat2StimPos = 0
@@ -433,13 +278,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: StimPos disconnected")
 
     def connect_Ineg_to_StimNeg(self):
-        """
-        Connect the routing path corresponding to ``Ineg to StimNeg``.
-
-        Returns
-        -------
-        None
-        """
         self.Ineg2StimNeg = 1
         self.VoutNeg2StimNeg = 0
         self.TIA2StimNeg = 0
@@ -448,13 +286,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: Ineg connected to StimNeg")
 
     def connect_Vneg_to_StimNeg(self):
-        """
-        Connect the routing path corresponding to ``Vneg to StimNeg``.
-
-        Returns
-        -------
-        None
-        """
         self.Ineg2StimNeg = 0
         self.VoutNeg2StimNeg = 1
         self.TIA2StimNeg = 0
@@ -463,13 +294,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: Vneg connected to StimNeg")
 
     def connect_TIA_to_StimNeg(self):
-        """
-        Connect the routing path corresponding to ``TIA to StimNeg``.
-
-        Returns
-        -------
-        None
-        """
         self.Ineg2StimNeg = 0
         self.VoutNeg2StimNeg = 0
         self.TIA2StimNeg = 1
@@ -478,13 +302,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: TIA connected to StimNeg")
 
     def connect_GND_to_StimNeg(self):
-        """
-        Connect the routing path corresponding to ``GND to StimNeg``.
-
-        Returns
-        -------
-        None
-        """
         self.Ineg2StimNeg = 0
         self.VoutNeg2StimNeg = 0
         self.TIA2StimNeg = 0
@@ -493,13 +310,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: GND connected to StimNeg")
 
     def disconnect_StimNeg(self):
-        """
-        Disconnect the routing path corresponding to ``StimNeg``.
-
-        Returns
-        -------
-        None
-        """
         self.Ineg2StimNeg = 0
         self.VoutNeg2StimNeg = 0
         self.TIA2StimNeg = 0
@@ -508,49 +318,21 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: StimNeg disconnected")
     
     def enable_DC_feedback(self):
-        """
-        Enable the DC feedback function.
-
-        Returns
-        -------
-        None
-        """
         self.DCFeedback = 1
         if (HardwareVerbose):
             print("Hardware Info: DC Feedback ON")
 
     def disable_DC_feedback(self):
-        """
-        Disable the DC feedback function.
-
-        Returns
-        -------
-        None
-        """
         self.DCFeedback = 0
         if (HardwareVerbose):
             print("Hardware Info: DC Feedback OFF")
 
     def connect_external_AWG(self):
-        """
-        Connect the routing path corresponding to ``external AWG``.
-
-        Returns
-        -------
-        None
-        """
         self.InternalAWG = 1
         if (HardwareVerbose):
             print("Hardware Info: External AWG connected")
 
     def connect_internal_AWG(self):
-        """
-        Connect the routing path corresponding to ``internal AWG``.
-
-        Returns
-        -------
-        None
-        """
         self.InternalAWG = 0
         if (HardwareVerbose):
             print("Hardware Info: Internal AWG connected")
@@ -558,231 +340,108 @@ class BIMMShardware(BIMMSad2):
     def connect_TIA_to_CH2(
         self,
     ):  # BUG !! Normalement = 0 pour disconnect mais 1 ici pour réparer bug Hardware
-        """
-        Connect the routing path corresponding to ``TIA to CH2``.
-
-        Returns
-        -------
-        None
-        """
         self.TIA2Chan2 = 0
         if (HardwareVerbose):
             print("Hardware Info: TIA connected to CH2")
 
     def disconnect_TIA_from_CH2(self):  # Ne marche pas car BUG Hardware
-        """
-        Disconnect the routing path corresponding to ``TIA from CH2``.
-
-        Returns
-        -------
-        None
-        """
         self.TIA2Chan2 = 1
         if (HardwareVerbose):
             print("Hardware Info: TIA disconnected from CH2")
 
     def connect_TIA_Neg_to_ground(self):
-        """
-        Connect the routing path corresponding to ``TIA Neg to ground``.
-
-        Returns
-        -------
-        None
-        """
         self.TIANegIn1 = 0
         self.TIANegIn2 = 0
         if (HardwareVerbose):
             print("Hardware Info: TIA neg connected to GND")
 
     def connect_TIA_Neg_to_Vneg(self):
-        """
-        Connect the routing path corresponding to ``TIA Neg to Vneg``.
-
-        Returns
-        -------
-        None
-        """
         self.TIANegIn1 = 1
         self.TIANegIn2 = 0
         if (HardwareVerbose):
             print("Hardware Info: TIA neg connected to Vneg")
 
     def connect_TIA_Neg_to_Ineg(self):
-        """
-        Connect the routing path corresponding to ``TIA Neg to Ineg``.
-
-        Returns
-        -------
-        None
-        """
         self.TIANegIn1 = 1
         self.TIANegIn2 = 1
         if (HardwareVerbose):
             print("Hardware Info: TIA neg connected to Ineg")
 
     def set_TIA_AC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``TIA AC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.TIACoupling = 1
         if (HardwareVerbose):
             print("Hardware Info: TIA AC Coupled")
 
     def set_TIA_DC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``TIA DC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.TIACoupling = 0
         if (HardwareVerbose):
             print("Hardware Info: TIA DC Coupled")
 
     def enable_potentiostat(self):
-        """
-        Enable the potentiostat function.
-
-        Returns
-        -------
-        None
-        """
         self.EnPotentiostat = 1
         if (HardwareVerbose):
             print("Hardware Info: Potentiostat EN")
 
     def disable_potentiostat(self):
-        """
-        Disable the potentiostat function.
-
-        Returns
-        -------
-        None
-        """
         self.EnPotentiostat = 0
         if (HardwareVerbose):
             print("Hardware Info: Potentiostat OFF")
 
     def enable_current_source(self):
-        """
-        Enable the current source function.
-
-        Returns
-        -------
-        None
-        """
         self.EnCurrentSource = 0
         if (HardwareVerbose):
             print("Hardware Info: Current Source ON")
 
     def disable_current_source(self):  # Might not be usefull / bad for AD830
-        """
-        Disable the current source function.
-
-        Returns
-        -------
-        None
-        """
         self.EnCurrentSource = 1
         if (HardwareVerbose):
             print("Hardware Info: Current Source OFF")
 
     def set_high_gain_current_source(self):
-        """
-        Apply the hardware setting corresponding to ``high gain current source``.
-
-        Returns
-        -------
-        None
-        """
         self.GainCurrentSource = 0
         if (HardwareVerbose):
             print("Hardware Info: Current Source High Gain")
 
     def set_low_gain_current_source(self):
-        """
-        Apply the hardware setting corresponding to ``low gain current source``.
-
-        Returns
-        -------
-        None
-        """
         self.GainCurrentSource = 1
         if (HardwareVerbose):
             print("Hardware Info: Current Source Low Gain")
 
     def set_Stim_DC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``Stim DC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.StimCoupling = 1
         if (HardwareVerbose):
             print("Hardware Info: DC coupled Excitation")
 
     def set_Stim_AC_coupling(self):
-        """
-        Apply the hardware setting corresponding to ``Stim AC coupling``.
-
-        Returns
-        -------
-        None
-        """
         self.StimCoupling = 0
         if (HardwareVerbose):
             print("Hardware Info: AC coupled Excitation")
 
     def set_2_points_config(self):
-        """
-        Deprecated alias for :meth:`set_2_wires_mode`.
-        """
         warn('This method is deprecated.', DeprecationWarning, stacklevel=2)
         self.set_2_wires_mode()
 
     def set_3_points_config(self):
-        """
-        Deprecated alias for :meth:`set_3_wires_mode`.
-        """
         warn('This method is deprecated.', DeprecationWarning, stacklevel=2)
         self.set_3_wires_mode()
 
     def set_4_points_config(self):
-        """
-        Deprecated alias for :meth:`set_4_wires_mode`.
-        """
         warn('This method is deprecated.', DeprecationWarning, stacklevel=2)
         self.set_4_wires_mode()
 
     def set_2_wires_mode(self):
-        """
-        Configure the front-end for two-wire measurements.
-        """
         self.StimNeg2VNeg = 1
         self.StimPos2VPos = 1
         if (HardwareVerbose):
             print("Hardware Info: 2-wire output connected")
 
     def set_3_wires_mode(self):
-        """
-        Placeholder for a future three-wire measurement topology.
-        """
         pass
         print("Warning: 3-wire mode not implemented yet")
         if (HardwareVerbose):
             print("Hardware Info: 3-wire output connected")
 
     def set_4_wires_mode(self):
-        """
-        Configure the front-end for four-wire measurements.
-        """
         self.StimNeg2VNeg = 0
         self.StimPos2VPos = 0
         if (HardwareVerbose):
@@ -793,15 +452,9 @@ class BIMMShardware(BIMMSad2):
     ##############################################
     def __DIO_init(self):
         #super().__DIO_init()
-        """
-        Initialize BIMMS-specific digital-I/O directions.
-        """
         self.set_DIO_mode()
 
     def set_DIO_mode(self):
-        """
-        Program digital-I/O directions for gain lines, LEDs, and free I/O pins.
-        """
         IO_vector = 0
         IO_vector += self.IO6_IO * (2**cst.IO6)
         IO_vector += self.IO7_IO * (2**cst.IO7)
@@ -820,14 +473,6 @@ class BIMMShardware(BIMMSad2):
         self.ad2.digitalIO_set_as_output(IO_vector)
 
     def set_gain_ch1_1(self, value):
-        """
-        Set the first gain-control stage of channel 1.
-
-        Parameters
-        ----------
-        value : int
-            Requested stage gain encoded through the BIMMS gain table.
-        """
         if (value not in cst.gain_IA1):
             print("WARNING: Invalid requested Gain for CH1_1")
             value = 1
@@ -847,14 +492,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: CH1_1 Gain set to " +str(value))
 
     def set_gain_ch1_2(self, value):
-        """
-        Set the second gain-control stage of channel 1.
-
-        Parameters
-        ----------
-        value : int
-            Requested stage gain encoded through the BIMMS gain table.
-        """
         if (value not in cst.gain_IA1):
             print("WARNING: Invalid requested Gain for CH1_2")
             value = 1
@@ -874,14 +511,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: CH1_2 Gain set to " +str(value))
 
     def set_gain_ch2_1(self, value):
-        """
-        Set the first gain-control stage of channel 2.
-
-        Parameters
-        ----------
-        value : int
-            Requested stage gain encoded through the BIMMS gain table.
-        """
         if (value not in cst.gain_IA1):
             print("WARNING: Invalid requested Gain for CH2_1")
             value = 1
@@ -901,14 +530,6 @@ class BIMMShardware(BIMMSad2):
             print("Hardware Info: CH2_1 Gain set to " +str(value))
 
     def set_gain_ch2_2(self, value):
-        """
-        Set the second gain-control stage of channel 2.
-
-        Parameters
-        ----------
-        value : int
-            Requested stage gain encoded through the BIMMS gain table.
-        """
         if (value not in cst.gain_IA1):
             print("WARNING: Invalid requested Gain for CH2_2")
             value = 1
@@ -932,68 +553,52 @@ class BIMMShardware(BIMMSad2):
     #################################
     def set_state(self, state):
         """
-        Set the operating state of the STM32 finite-state machine.
+        Set the state of STM32
 
         Parameters
         ----------
         state : int
-            Firmware state code defined in the BIMMS constants module.
+            either STM32_stopped, STM32_idle, STM32_locked, STM32_error = 0x03
+            defined in BIMMS_constants
         """
         value = cst.cmd_shift * cst.set_STM32_state + state
         self.tx_2_STM32(value)
 
     def set_STM32_stopped(self):
-        """
-        Set the STM32 control state to ``stopped``.
-        """
         self.set_state(cst.STM32_stopped)
         if (HardwareVerbose):
             print("Hardware Info: STM32 set to stop mode")
 
     def set_STM32_idle(self):
-        """
-        Set the STM32 control state to ``idle``.
-        """
         self.set_state(cst.STM32_idle)
         if (HardwareVerbose):
             print("Hardware Info: STM32 set to Idle mode")
 
     def set_STM32_locked(self):
-        """
-        Set the STM32 control state to ``locked``.
-        """
         self.set_state(cst.STM32_locked)
         if (HardwareVerbose):
             print("Hardware Info: STM32 set to lock mode")
 
     def set_STM32_error(self):
-        """
-        Set the STM32 control state to ``error``.
-        """
         self.set_state(cst.STM32_error)
         if (HardwareVerbose):
             print("Hardware Info: STM32 set to error mode")
 
     def get_state(self):
         """
-        Read the current STM32 operating state.
+        Get the state of the STM32
 
         Returns
         -------
-        int
-            Firmware state code.
+        state	: int
+            0: STM32_stopped
+            1: STM32_idle
+            2: STM32_locked
+            3: STM32_error
         """
         state = self.read_STM32_register(cst.state_add)
         return state
 
     def get_STM32_error(self):
-        """
-        Read the current STM32 error register.
-
-        Returns
-        -------
-        int
-            Error code reported by the firmware.
-        """
         error = self.read_STM32_register(cst.error_add)
         return error

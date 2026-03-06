@@ -1,9 +1,18 @@
-"""Calibration helper layer for BIMMS.
+"""
+    Python library to use BIMMS measurement setup
+    Authors: Florian Kolbl / Louis Regnacq
+    (c) ETIS - University Cergy-Pontoise
+        IMS - University of Bordeaux
+        CNRS
 
-This module provides calibration-aware utilities for deriving excitation and
-recording parameters from the active BIMMS configuration. The current
-implementation mainly falls back to default hardware coefficients when no
-validated calibration data are available.
+    Requires:
+        Python 3.6 or higher
+        Analysis_Instrument - class handling Analog Discovery 2 (Digilent)
+
+    Dev notes:
+        - LR: in BIMMS_constants, IO15 change with IO7 because hardware issue.  
+        - LR: TIA relay modified too
+
 """
 import sys
 import os
@@ -25,24 +34,7 @@ calibration_path = os.environ["BIMMS"] + "/_misc/calibrations/"
 ## CLASS FOR BIMMS HANDLING ##
 ##############################
 class BIMMScalibration(BIMMSconfig):
-    """
-    Calibration-aware extension of the BIMMS configuration layer.
-
-    The class computes excitation amplitudes, offsets, and effective recording gains
-    from the active configuration while allowing future integration of measured
-    calibration coefficients.
-    """
     def __init__(self, bimms_id=None, serialnumber=None):
-        """
-        Initialize calibration-related state variables.
-
-        Parameters
-        ----------
-        bimms_id : int, optional
-            Registered BIMMS identifier.
-        serialnumber : str, optional
-            Explicit Analog Discovery 2 serial number.
-        """
         super().__init__(bimms_id=bimms_id, serialnumber=serialnumber)
         self.awg_offset = None
         self.awg_amp = None
@@ -57,24 +49,9 @@ class BIMMScalibration(BIMMSconfig):
     #####################################
 
     def check_calibration(self):
-        """
-        Update the internal calibration-validity flag.
-
-        Notes
-        -----
-        The current implementation always marks the instrument as uncalibrated.
-        """
         self.calibrated = False
 
     def get_calibration(self):
-        """
-        Load calibration coefficients for the active instrument.
-
-        Notes
-        -----
-        When no valid calibration is available, excitation calibration parameters are
-        reset to ``None``.
-        """
         self.check_calibration()
         if self.calibrated:
             pass
@@ -83,16 +60,10 @@ class BIMMScalibration(BIMMSconfig):
             self.cal_awg_gain = None
 
     def validate_excitation_parameter(self):
-        """
-        Validate derived excitation parameters against hardware constraints.
-        """
         print("validate_excitation_parameter not implemented")
         pass
 
     def get_recording_gains(self):
-        """
-        Determine effective recording gains for the active configuration.
-        """
         self.check_calibration()
         self.cal_ch1_gain = None
         self.cal_ch2_gain = None
@@ -105,36 +76,23 @@ class BIMMScalibration(BIMMSconfig):
             self.get_default_TIA_gain()
 
     def get_default_ch2_gain(self):
-        """
-        Assign the default gain used for current readout channel 2.
-        """
         if (self.config_mode == "MEASURE"):
             self.cal_ch2_gain = int(self.config.IRO_gain)
         else:
             self.cal_ch2_gain = int(self.manual_config.CH2_gain)
 
     def get_default_ch1_gain(self):
-        """
-        Assign the default gain used for voltage readout channel 1.
-        """
         if (self.config_mode == "MEASURE"):
             self.cal_ch1_gain = int(self.config.VRO_gain)
         else:
             self.cal_ch1_gain = int(self.manual_config.CH1_gain)
     
     def get_default_TIA_gain(self):
-        """
-        Assign the default transimpedance-amplifier gain coefficient.
-        """
         self.cal_TIA_gain = cst.TIA_gain_default
 
     def get_awg_parameters(self):
         """
-        Derive arbitrary-waveform-generator parameters from the active configuration.
-
-        The method converts user-level excitation amplitudes into backend units and
-        determines the corresponding offset and gain according to excitation mode,
-        signaling mode, and current-source gain selection.
+        
         """
         self.get_calibration()
         unit = 1
@@ -182,25 +140,9 @@ class BIMMScalibration(BIMMSconfig):
 
     def bode2impendance(self, *args):
 
-        """
-        Convert Bode-type measurements into impedance-domain quantities.
-
-        Returns
-        -------
-        tuple
-            Currently returns the first two positional arguments unchanged.
-        """
         if (not(self.calibrated)):
             pass
         return args[:2]
 
     def Scope2calibration(self, *args):
-        """
-        Convert oscilloscope-domain data into calibration-domain quantities.
-
-        Returns
-        -------
-        tuple
-            Currently returns the first two positional arguments unchanged.
-        """
         return args[:2]

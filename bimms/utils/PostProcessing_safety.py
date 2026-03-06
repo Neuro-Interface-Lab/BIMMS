@@ -1,8 +1,13 @@
-"""Post-processing routines for BIMMS measurement data.
+"""
+    Python library to use BIMMS measurement setup - Post Processing 
+    Authors: Florian Kolbl / Louis Regnacq
+    (c) ETIS - University Cergy-Pontoise
+        IMS - University of Bordeaux
+        CNRS
 
-This module contains numerical utilities used after acquisition, notably
-piecewise polynomial fitting and phase normalization for spectra or calibration
-curves derived from impedance measurements.
+    Requires:
+        Python 3.6 or higher
+
 """
 import andi as ai
 import numpy as np
@@ -10,27 +15,6 @@ import json
 from scipy.signal import savgol_filter
 
 def SplitFit(N_fit,freq,data,polyOrder):
-    """Fit a piecewise polynomial model to frequency-domain data.
-
-    Parameters
-    ----------
-    N_fit : int
-        Number of frequency segments used to partition the data.
-    freq : array-like
-        Frequency samples.
-    data : array-like
-        Values to fit on each frequency segment.
-    polyOrder : int or list of int
-        Polynomial order for the fit. When a list is provided, one order is
-        used per segment.
-
-    Returns
-    -------
-    tuple
-        Tuple ``(coef_list, freq_lim)`` where ``coef_list`` contains the
-        polynomial coefficients of each segment and ``freq_lim`` stores the
-        upper frequency boundary of each fitted segment.
-    """
     SizeN = int(len(freq)/N_fit)
     if (N_fit==1):
         coef_list = [np.polyfit(freq, data, polyOrder)]
@@ -57,22 +41,6 @@ def SplitFit(N_fit,freq,data,polyOrder):
     return(coef_list,freq_lim)
 
 def ComputeSplitFit(coef_list,freq_lim,freq):
-    """Evaluate a piecewise polynomial model on a target frequency grid.
-
-    Parameters
-    ----------
-    coef_list : list of array-like
-        Polynomial coefficients for each segment.
-    freq_lim : list or array-like
-        Upper frequency limit associated with each segment.
-    freq : array-like
-        Frequencies at which the fitted model is evaluated.
-
-    Returns
-    -------
-    numpy.ndarray
-        Piecewise polynomial values interpolated on ``freq``.
-    """
     Nsplit = len(freq_lim)
     data_arr = []
     data = []
@@ -95,18 +63,6 @@ def ComputeSplitFit(coef_list,freq_lim,freq):
     return(data)
 
 def unwrap_phase(phase):
-    """Normalize phase data to a negative wrapped representation.
-
-    Parameters
-    ----------
-    phase : array-like
-        Phase values, generally expressed in degrees.
-
-    Returns
-    -------
-    array-like
-        Input phase vector modified in place and returned after normalization.
-    """
     for x in range (len(phase)):
         if phase[x]>180:
             phase[x] = 360-phase[x]
@@ -114,3 +70,4 @@ def unwrap_phase(phase):
         if phase[x]<0:
             phase[x] = -(phase[x])
     return(-phase)
+

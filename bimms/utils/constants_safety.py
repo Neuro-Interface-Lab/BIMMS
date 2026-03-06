@@ -1,13 +1,12 @@
-"""Hardware, firmware, and calibration constants used by BIMMS.
+"""
+	Python library to use BIMMS measurement setup - STM32 constants
+	Authors: Florian Kolbl / Louis Regnacq / Thomas Couppey
+	(c) ETIS - University Cergy-Pontoise
+		IMS - University of Bordeaux
+		CNRS
 
-This module centralizes numerical constants employed throughout the BIMMS
-software and embedded communication stack. It includes command identifiers for
-STM32 control, relay bit masks, Analog Discovery 2 channel assignments,
-instrument gains, operating ranges, tolerance thresholds used during self-test
-procedures, and unit-conversion coefficients.
-
-The variables defined here act as a shared parameter registry for low-level
-hardware control, acquisition configuration, and post-acquisition validation.
+	Requires:
+		Python 3.6 or higher
 """
 import numpy as np
 

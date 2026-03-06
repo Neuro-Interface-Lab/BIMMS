@@ -1,8 +1,18 @@
-"""Measurement-configuration layer for BIMMS.
+"""
+    Python library to use BIMMS measurement setup
+    Authors: Florian Kolbl / Louis Regnacq
+    (c) ETIS - University Cergy-Pontoise
+        IMS - University of Bordeaux
+        CNRS
 
-This module defines the configurable operating modes used by BIMMS for
-measurement and manual test operation. It translates user-facing configuration
-objects into hardware-routing and gain-selection commands.
+    Requires:
+        Python 3.6 or higher
+        Analysis_Instrument - class handling Analog Discovery 2 (Digilent)
+
+    Dev notes:
+        - LR: in BIMMS_constants, IO15 change with IO7 because hardware issue.  
+        - LR: TIA relay modified too
+
 """
 import sys
 import os
@@ -27,24 +37,7 @@ verbose = True
 ## CLASS FOR BIMMS CONFIGURATION ##
 ###################################
 class BIMMSconfig(BIMMShardware):
-    """
-    Configuration manager for BIMMS measurement and manual modes.
-
-    The class defines admissible configuration modes, gain selections, coupling
-    modes, excitation paths, and manual diagnostic settings. It also translates
-    those settings into low-level routing commands.
-    """
     def __init__(self, bimms_id=None, serialnumber=None):
-        """
-        Initialize configuration objects for measurement and manual operation.
-
-        Parameters
-        ----------
-        bimms_id : int, optional
-            Registered BIMMS identifier.
-        serialnumber : str, optional
-            Explicit Analog Discovery 2 serial number.
-        """
         super().__init__(bimms_id=bimms_id, serialnumber=serialnumber)
 
         #self.set_STM32_idle()
@@ -105,21 +98,16 @@ class BIMMSconfig(BIMMShardware):
     ####################
     def save_config(self, save=False, fname="bimms_config.json", blacklist=[], manual=False, **kwargs):
         """
-        Serialize the active BIMMS configuration.
+        Save the bimms the configuration
 
         Parameters
         ----------
         save : bool, optional
-            If ``True``, write the serialized configuration to disk.
+            If True, save the BIMMS object in a json file
         fname : str, optional
-            Output JSON file name.
-        blacklist : list, optional
-            Configuration keys to exclude from serialization.
-        manual : bool, optional
-            If ``True``, serialize the manual-test configuration instead of the
-            measurement configuration.
-        **kwargs : dict
-            Additional keyword arguments forwarded to the configuration object.
+            Name of the json file
+        **kwargs : dict, optional
+            Additional arguments to be passed to the save method of the BIMMS object
         """
         if not manual:
             self.config.save(save=save, fname=fname, **kwargs)
@@ -129,18 +117,16 @@ class BIMMSconfig(BIMMShardware):
 
     def load_config(self, data, blacklist={}, manual=False, **kwargs):
         """
-        Load a BIMMS configuration from a dictionary-like object.
+        Load the bimms the configuration
 
         Parameters
         ----------
         data : dict
-            Serialized configuration payload.
+            Dictionary containing the BIMMS object
         blacklist : dict, optional
-            Keys to ignore during loading.
-        manual : bool, optional
-            If ``True``, load the manual-test configuration.
-        **kwargs : dict
-            Additional keyword arguments forwarded to the configuration object.
+            Dictionary containing the keys to be excluded from the load
+        **kwargs : dict, optional
+            Additional arguments to be passed to the load method of the BIMMS object
         """
         if not manual:
             self.config.load(data, blacklist, **kwargs)
@@ -152,16 +138,6 @@ class BIMMSconfig(BIMMShardware):
     ## AD2 Digital IO methods for gains control ##
     ##############################################
     def set_gain_IA(self, channel=1, gain=1):
-        """
-        Set the overall instrumentation-amplifier gain for a selected readout channel.
-
-        Parameters
-        ----------
-        channel : int, optional
-            Readout channel index, typically ``1`` or ``2``.
-        gain : int, optional
-            Requested overall gain selected from ``cst.gain_array``.
-        """
         gain_array = cst.gain_array
         gain_IA1 = cst.gain_IA1
         gain_IA2 = cst.gain_IA2
@@ -189,12 +165,7 @@ class BIMMSconfig(BIMMShardware):
     ################################
     def set_config(self,send = True):
         """
-        Apply the active BIMMS configuration to the hardware layer.
-
-        Parameters
-        ----------
-        send : bool, optional
-            If ``True``, transmit the resulting relay state to the STM32.
+        
         """
         if (self.config_mode == "MEASURE"):
             if self.config.wire_mode == "2" or self.config.wire_mode == "2_WIRE":
@@ -214,9 +185,6 @@ class BIMMSconfig(BIMMShardware):
             self.send_config()
 
     def reset_config(self):
-        """
-        Reset measurement and manual configurations to their defaults.
-        """
         self.config_mode("MEASURE")
         self.config.reset()
         self.manual_config.reset()
@@ -225,11 +193,7 @@ class BIMMSconfig(BIMMShardware):
 
     def set_exitation_config(self):
         """
-        Configure the excitation path according to the active measurement settings.
-
-        Notes
-        -----
-        The method name follows the original source spelling.
+        
         """
         if self.config.excitation_sources == "EXTERNAL":
             self.connect_external_AWG()
@@ -272,7 +236,7 @@ class BIMMSconfig(BIMMShardware):
 
     def set_recording_config(self):
         """
-        Configure the recording path and readout gains according to the active measurement settings.
+        
         """
         self.config.recording_signaling_mode_local = self.config.recording_signaling_mode
         if self.config.recording_signaling_mode == "AUTO":
@@ -299,9 +263,6 @@ class BIMMSconfig(BIMMShardware):
 
     def set_I_recording(self):
 
-        """
-        Route the hardware for current readout through the transimpedance amplifier.
-        """
         if self.config.recording_mode == "I":
             self.disconnect_CH1_from_scope_1()
         self.connect_CH2_to_scope_2()
@@ -321,9 +282,6 @@ class BIMMSconfig(BIMMShardware):
                 self.connect_TIA_Neg_to_ground()
 
     def set_V_recording(self):
-        """
-        Route the hardware for voltage readout on channel 1.
-        """
         if self.config.recording_mode == "V":
             self.disconnect_CH2_from_scope_2()
             #self.disconnect_TIA_from_CH2() #BUG? 
@@ -337,9 +295,6 @@ class BIMMSconfig(BIMMShardware):
     #######################################
 
     def set_manual_config(self):
-        """
-        Apply the manual test configuration to the hardware.
-        """
         print("INFO: BIMMS set to test mode.")
         if self.manual_config.wire_mode == "2" or self.manual_config.wire_mode == "2_WIRE":
             self.set_2_wires_mode()
@@ -350,9 +305,6 @@ class BIMMSconfig(BIMMShardware):
         self.set_test_readout_config()
 
     def set_test_excitation_config(self):
-        """
-        Configure excitation routing for manual test mode.
-        """
         if (self.manual_config.waveform_gen) == "INTERNAL":
             self.connect_internal_AWG()
         else:
@@ -376,9 +328,6 @@ class BIMMSconfig(BIMMShardware):
 
 
     def set_test_excitation_source(self):
-        """
-        Select the excitation source and signaling mode for manual test mode.
-        """
         if (self.manual_config.excitation_source == "NONE"):
             self.disconnect_StimNeg()
             self.disconnect_StimPos()
@@ -401,9 +350,6 @@ class BIMMSconfig(BIMMShardware):
                 self.connect_Vneg_to_StimNeg()
     
     def set_test_readout_config(self):
-        """
-        Configure readout routing and gains for manual test mode.
-        """
         self.set_test_CHx_to_SCOPEx()
 
         self.set_gain_IA(channel=1, gain=int(self.manual_config.CH1_gain))
@@ -413,9 +359,6 @@ class BIMMSconfig(BIMMShardware):
         self.connect_TIA()
 
     def connect_TIA(self):
-        """
-        Configure the transimpedance-amplifier routing in manual test mode.
-        """
         if (self.manual_config.connect_TIA== True):
 
             self.connect_TIA_to_StimNeg()
@@ -435,9 +378,6 @@ class BIMMSconfig(BIMMShardware):
              self.connect_TIA_Neg_to_Ineg
 
     def set_test_CHx_to_SCOPEx(self):
-        """
-        Connect selected readout channels to the oscilloscope inputs in manual test mode.
-        """
         if (self.manual_config.CHx_to_Scopex == "NONE"):
             self.disconnect_CH2_from_scope_2()
             self.disconnect_CH1_from_scope_1()
@@ -452,9 +392,6 @@ class BIMMSconfig(BIMMShardware):
             self.connect_CH1_to_scope_1()
 
     def set_readout_coupling(self):
-        """
-        Apply the requested AC/DC coupling to manual readout paths.
-        """
         if (self.manual_config.CH1_coupling == "AC"):
             self.set_CH1_AC_coupling()
         else:
