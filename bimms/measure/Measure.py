@@ -192,23 +192,53 @@ class EIS(Measure):
         self.nperiods = nperiods
 
     def set_fmin(self, f):
-        """Set the minimum frequency (Hz)."""
+        """Set the minimum frequency (Hz).
+
+        Parameters
+        ----------
+        f: float
+            minimum frequency of the measurement in Hz
+        """
         self.set_parameters(fmin=f)
 
     def set_fmax(self, f):
-        """Set the maximum frequency (Hz)."""
+        """Set the maximum frequency (Hz).
+
+        Parameters
+        ----------
+        f: float
+            maximum frequency of the measurement in Hz
+        """
         self.set_parameters(fmax=f)
 
     def set_n_pts(self, N):
-        """Set the number of frequency points."""
+        """Set the number of frequency points.
+        
+        Parameters
+        ----------
+        n: int
+            number of measurements points (or frequencies between fmin and fmax)
+        """
         self.set_parameters(n_pts=N)
 
     def set_settling_time(self, t):
-        """Set the settling time (s)."""
+        """Set the settling time (s).
+        
+        Parameters
+        ----------
+        n: int
+            settling time of the measure at a given frequency
+        """
         self.set_parameters(settling_time=t)
 
     def set_nperiods(self, N):
-        """Set the number of periods per frequency."""
+        """Set the number of periods per frequency.
+        
+        Parameters
+        ----------
+        N: int
+            number of periods at a given frequency for the measurement
+        """
         self.set_parameters(nperiods=N)
 
     def measure(self, BS: BIMMScalibration):
